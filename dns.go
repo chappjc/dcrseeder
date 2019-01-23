@@ -31,13 +31,13 @@ func (d *DNSServer) Start() {
 		return
 	}
 
-	//	udpAddr, err := net.ResolveUDPAddr("udp4", d.listen)
-	//	if err != nil {
-	//		log.Printf("ResolveUDPAddr: %v", err)
-	//		return
-	//	}
+	udpAddr, err := net.ResolveUDPAddr("udp", d.listen)
+	if err != nil {
+		log.Printf("ResolveUDPAddr: %v", err)
+		return
+	}
 
-	udpListen, err := net.ListenUDP("udp", nil)
+	udpListen, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
 		log.Printf("ListenUDP: %v", err)
 		return
