@@ -36,6 +36,7 @@ func (d *DNSServer) Start() {
 		log.Printf("ResolveUDPAddr: %v", err)
 		return
 	}
+	fmt.Println(udpAddr.String())
 
 	udpListen, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
