@@ -33,6 +33,7 @@ type Manager struct {
 
 	port      string
 	nodes     map[string]*Node
+	changed   bool
 	wg        sync.WaitGroup
 	quit      chan struct{}
 	peersFile string
@@ -148,13 +149,15 @@ func NewManager(dataDir string, defaultPort string) (*Manager, error) {
 
 func (m *Manager) Stop() {
 	close(m.quit)
-	m.wg.Wait()
+	m.wg.Wait() // wait for addressHandler
+	log.Print("Address manager done.")
 }
 
 func (m *Manager) AddAddresses(addrs []net.IP) int {
 	var count int
 
 	m.mtx.Lock()
+	m.changed = true
 	for _, addr := range addrs {
 		if !isRoutable(addr) {
 			continue
@@ -289,6 +292,7 @@ func (m *Manager) Attempt(ip net.IP) {
 	m.mtx.Lock()
 	node, exists := m.nodes[ip.String()]
 	if exists {
+		m.changed = true
 		node.LastAttempt = time.Now()
 	}
 	m.mtx.Unlock()
@@ -298,6 +302,7 @@ func (m *Manager) Good(ip net.IP, services wire.ServiceFlag, pver uint32) {
 	m.mtx.Lock()
 	node, exists := m.nodes[ip.String()]
 	if exists {
+		m.changed = true
 		node.ProtocolVersion = pver
 		node.Services = services
 		node.LastSuccess = time.Now()
@@ -345,6 +350,9 @@ func (m *Manager) prunePeers() {
 		}
 	}
 	l := len(m.nodes)
+	if count > 0 {
+		m.changed = true
+	}
 	m.mtx.Unlock()
 
 	log.Printf("Pruned %d addresses: %d remaining", count, l)
@@ -372,6 +380,7 @@ func (m *Manager) deserializePeers() error {
 	l := len(nodes)
 
 	m.mtx.Lock()
+	m.changed = true
 	m.nodes = nodes
 	m.mtx.Unlock()
 
@@ -382,6 +391,11 @@ func (m *Manager) deserializePeers() error {
 func (m *Manager) savePeers() {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
+
+	if !m.changed {
+		return
+	}
+	m.changed = false
 
 	// Write temporary peers file and then move it into place.
 	tmpfile := m.peersFile + ".new"
